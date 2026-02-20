@@ -4,7 +4,7 @@ The Code Design Documentation for the Dancefloor Duelist <br>
 |  Script       | Description                                                  |
 | ------------------- | ------------------------------------------------------------ |
 | `GridManager.cs` | Responsible for managing everything about the grid which every entity will be on |
-| `RhythmManager.cs` | Responsible for managing the rhythm, and the timing of each beat and player's input timing, which every entity's movement will be based on |
+| `RhythmManager.cs` | Responsible for managing the rhythm's beat, and the timing of player's input, which determine every entity's movement |
 | `GameplayBeatController.cs` | Responsible for making sure the collision of each entity occurs after movement is done |
 | `GameEvents.cs` | Responsible for storing all the events of the game |
 | `MenuManager.cs` | Responsible for managing main menu, as well as showing the tutorials |
@@ -12,8 +12,8 @@ The Code Design Documentation for the Dancefloor Duelist <br>
 **The Visual Script**:
 |  Script       | Description                                                  |
 | ------------------- | ------------------------------------------------------------ |
-| `BeatIndicatorPresenter.cs` and `BeatIndicatorView.cs` | Responsible for managing the visual for indicating beat |
-| `ParryEffectsController.cs` and `ParryVFX.cs` | Responsible for managing the visual for parrying bullets |
+| `BeatIndicatorPresenter.cs` and `BeatIndicatorView.cs` | Responsible for managing the visual for indicating when beat is about to happen |
+| `ParryEffectsController.cs` and <br> `ParryVFX.cs` | Responsible for managing the visual for parrying bullets |
 | `TimingFeedbackController.cs` | Responsible for managing and triggering the visual vfx of the player's beat timing |
 
 **Interface Script**:
@@ -30,3 +30,18 @@ The Code Design Documentation for the Dancefloor Duelist <br>
 | `GameplayBeatController.cs` | Responsible for making sure the player's collision occurs only after movement is executed (to allow for side switching with projectiles) |
 | `PlayerHealth.cs` and `PlayerHealthUI.cs` | Responsible for managing and showing the player's current health |
 
+**The Enemy Script**:
+|  Script       | Description                                                  |
+| ------------------- | ------------------------------------------------------------ |
+| `EnemyMovement.cs.cs` | Responsible for the Enemy's movement depending on their Movement Pattern |
+| `EnemyMovementPatternSO.cs` and <br> `EnemyMovementSequenceSO.cs` | Responsible for storing the Enemy's planned movements, which will be executed each beat |
+
+**The Enemy Projectile Script**: 
+<br> (Note: Hazard means Bullets and Lasers)
+|  Script       | Description                                                  |
+| ------------------- | ------------------------------------------------------------ |
+| `HazardSpawningPatternSO.cs` | Responsible for storing the patterns for when and where hazards are spawned, example in a V or \ pattern, and the Movement Pattern of the spawned Hazard |
+| `HazardBehaviorSO.cs`  | Responsible for storing movement patterns for a spawned Hazards |
+| `BulletMovementPatternSO.cs` and `LaserMovementPatternSO.cs` | Derived Class of the HazardBehaviorSO.cs, seperated to allow for different movement for each type of Hazard |
+| `Bullet.cs` and `Laser.cs` | Responsible for managing the movement based on the stored Movement Pattern |
+| `PatternExecutor.cs` | Responsible for starting each assigned HazardSpawningPatternSO depending on their scheduled time, and allowing them to run in parallel with each other |
