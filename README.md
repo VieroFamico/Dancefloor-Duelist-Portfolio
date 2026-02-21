@@ -34,6 +34,7 @@ The Code Design Documentation for the Dancefloor Duelist
 **The Enemy Script**:
 |  Script       | Description                                                  |
 | ------------------- | ------------------------------------------------------------ |
+| `EnemyController.cs` | Responsible for a list of movementSequence and ScheduledAttack structs, Which will be passed to the PatternExecutor and EnemyMovement.cs on specific global beats |
 | `EnemyMovement.cs.cs` | Responsible for the Enemy's movement depending on their Movement Pattern |
 | `EnemyMovementPatternSO.cs` and <br> `EnemyMovementSequenceSO.cs` | Responsible for storing the Enemy's planned movements, which will be executed each beat |
 
@@ -48,5 +49,44 @@ The Code Design Documentation for the Dancefloor Duelist
 | `PatternExecutor.cs` | Responsible for starting each assigned HazardSpawningPatternSO depending on their scheduled time, and allowing them to run in parallel with each other |
 | `BulletState.cs` and `LaserState.cs` | Enums responsible defining the state for bullets, regular/parryable, and laser, charging/active |
 
+##  System Design
+Other than individual scripts, the game relies on several interconnected systems to handle several mechanics. Below is an overview of how the core mechanics are engineered.
 
+#### 1. Rhythm-Synced Execution Pipeline
+**Problem:** In a rhythm game, player input happens asynchronously (at any frame), but game logic (movement, attacks) must resolve synchronously (exactly on the beat). <br>
+**Solution:** A decoupled pipeline using the **Observer** and **Command** patterns.
+
+*   **The Heartbeat:** The `RhythmManager` constantly polls the FMOD audio timeline. When the audio reaches a specific DSP timestamp, it fires the `OnBeatTriggered` event via a centralized `GameEvents` Singleton.
+*   **Queued Actions:** When the player inputs a command (Move, Dash, Parry), `PlayerMovement` evaluates the input chord (allowing for a 50ms leniency window for diagonals/simultaneous presses). Instead of moving immediately, it packages the intended action into a `MoveCommand` and queues it. It also immediately registers the input timestamp with the `RhythmManager` to judge timing accuracy (Perfect/Great/Good).
+*   **Synchronous Execution:** Once `OnBeatTriggered` fires, all entities (`PlayerMovement`, `EnemyMovement`, `Bullets`) immediately execute their queued logic. This guarantees that no matter when the player pressed the button within the rhythm window, the visual execution happens perfectly on the beat alongside the enemies.
+
+#### 2. Input Chord & Leniency System
+**Problem:** Players rarely press multiple keys on the exact same frame. Requiring perfect simultaneous inputs for mechanics like Dashing (Left+Right), Parrying (Up+Down), or Diagonal movement results in dropped inputs and poor "game feel."
+**Solution:** A custom Input Chord Window with dynamic resolution.
+*   **Micro-Buffering:** When a directional key is pressed, the system opens a 50ms "chord window" coroutine. 
+*   **Dynamic Resolution:** If a second, compatible key is pressed within this 50ms window (e.g., Up, then Left), the system immediately registers a compound action (Diagonal Move) and cancels the timer. If the timer expires—or if the original key is released before expiration—it resolves as a single cardinal movement.
+*   **State Priming:** For complex actions like the Parry, the chord window doesn't queue a movement command. Instead, it immediately activates an `IsParryingThisBeat` state flag. This ensures the player's defensive state is active for the current beat's collision resolution while preserving the fluidity of movement inputs.
+
+#### 3. Data-Driven Hazard & Spawning System
+**Problem:** Hardcoding enemy attack patterns and bullet behaviors creates massive, unmaintainable scripts and slows down level design iteration. <br>
+**Solution:** A highly modular, data-driven approach using **Scriptable Objects** and **Object Pooling**.
+
+*   **Behavior Definition:** Hazards (Bullets, Lasers) have no hardcoded movement. Instead, they read from `HazardBehaviorSO` Scriptable Objects, which define lifetime, looping rules, and a list of `Vector2Int` step sequences.
+*   **Attack Scheduling:** Enemies utilize an `EnemyController` that holds a list of `ScheduledAttack` structs. On specific global beats, it passes a `HazardSpawningPatternSO` to the `PatternExecutor`.
+*   **Concurrent Execution & Pooling:** The `PatternExecutor` can run multiple spawning sequences simultaneously. When a beat dictates a spawn, it requests a hazard from the `ObjectPooler` Singleton, initializing the reused GameObject with the specific `HazardBehaviorSO` and starting states (e.g., setting a bullet to `Parryable`). This allows designers to create complex "bullet hell" patterns entirely in the Unity Inspector without writing new code, while maintaining strict memory efficiency.
+
+#### 4. Custom Grid Occupancy & Collision Resolution
+**Problem:** Standard Unity Physics (Rigidbodies/Colliders) resolve continuously over the physics step, which can lead to floating-point inaccuracies, wall-clipping, and unpredictable state changes in a strict grid-based game. <br>
+**Solution:** A custom, post-movement spatial tracking system managed by the `GridManager`.
+
+*   **IGridOccupant Interface:** Every entity on the board (Player, Enemy, Hazards) implements `IGridOccupant`. They are responsible for calculating which `Vector2Int` grid cells they currently occupy based on their origin, size, and rotation.
+*   **Execution Order Management:** When `OnBeatTriggered` fires, entities update their internal grid coordinates instantly (and begin their visual DOTween animations). However, collisions are *not* checked immediately.
+*   **End-of-Frame Resolution:** To prevent race conditions (e.g., checking collision before an enemy has moved out of a space), a `GameplayBeatController` waits for the `WaitForEndOfFrame` coroutine. Once all entities have settled into their new logical coordinates, it commands the `GridManager` to map all occupants to a spatial dictionary.
+*   **State-Based Interaction:** The `GridManager` then checks for overlapping entities in the dictionary. Instead of physical collisions, it resolves interactions based on logical states. For example, if a Player and a Bullet share a cell, it checks the player's `IsParryingThisBeat` flag against the bullet's `CurrentBulletState` to determine if the player takes damage or successfully triggers a Parry event.
+
+#### 5. MVP Architecture for UI (Beat Indicators)
+**Problem:** Tying UI visual logic directly into core game loops creates rigid code that is difficult to update or animate smoothly.
+**Solution:** Implementing the **Model-View-Presenter (MVP)** pattern for the rhythmic UI.
+*   **Separation of Concerns:** The `BeatIndicatorPresenter` acts as the brain. It listens to the `RhythmManager` for upcoming beats and calculates exact DOTween durations based on look-ahead math (e.g., spawning an indicator exactly 3 beats early). 
+*   **Dumb Views:** It instantiates `BeatIndicatorView` prefabs, which handle absolutely no game logic. They simply receive a start position, target position, and duration from the Presenter, and play their visual tween. Once the beat actually strikes, the Presenter issues a kill command, ensuring the UI remains perfectly synced with the FMOD audio backend without ever interfering with gameplay code.
 
