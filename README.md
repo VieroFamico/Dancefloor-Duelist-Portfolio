@@ -55,10 +55,9 @@ Other than individual scripts, the game relies on several interconnected systems
 #### 1. Rhythm-Synced Execution Pipeline
 **Problem:** In a rhythm game, player input happens asynchronously (at any frame), but game logic (movement, attacks) must resolve synchronously (exactly on the beat). <br>
 **Solution:** A decoupled pipeline using the **Observer** and **Command** patterns.
-
-*   **The Heartbeat:** The `RhythmManager` constantly polls the FMOD audio timeline. When the audio reaches a specific DSP timestamp, it fires the `OnBeatTriggered` event via a centralized `GameEvents` Singleton.
-*   **Queued Actions:** When the player inputs a command (Move, Dash, Parry), `PlayerMovement` evaluates the input chord (allowing for a 50ms leniency window for diagonals/simultaneous presses). Instead of moving immediately, it packages the intended action into a `MoveCommand` and queues it. It also immediately registers the input timestamp with the `RhythmManager` to judge timing accuracy (Perfect/Great/Good).
-*   **Synchronous Execution:** Once `OnBeatTriggered` fires, all entities (`PlayerMovement`, `EnemyMovement`, `Bullets`) immediately execute their queued logic. This guarantees that no matter when the player pressed the button within the rhythm window, the visual execution happens perfectly on the beat alongside the enemies.
+*   **The Heartbeat:** A central `RhythmManager` constantly polls the FMOD audio timeline. Instead of relying on Unity's `Update()`, it calculates exact DSP timestamps to fire `OnBeatTriggered` events via a centralized `GameEvents` Singleton.
+*   **Action Queuing:** When a player inputs a move, the logic evaluates the timing quality (Perfect/Great/Good) and encapsulates the intended action into a `MoveCommand`. The action is queued rather than executed immediately.
+*   **Synchronous Resolution:** Once the global beat event fires, all active entities (Player, Enemies, Hazards) dequeue and execute their logic simultaneously. This guarantees that visual execution happens perfectly on the beat, maintaining absolute synchronization regardless of when the input occurred within the leniency window.
 
 #### 2. Input Chord & Leniency System
 **Problem:** Players rarely press multiple keys on the exact same frame. Requiring perfect simultaneous inputs for mechanics like Dashing (Left+Right), Parrying (Up+Down), or Diagonal movement results in dropped inputs and poor "game feel."
