@@ -1,4 +1,6 @@
-# Dancefloor-Duelist-Portfolio-
+# Dancefloor-Duelist-Portfolio
+<img src="https://github.com/VieroFamico/VieroFamico/blob/main/assets/DanceFloor%20Duelist.gif"/>
+
 The Code Design Documentation for the Dancefloor Duelist 
 <br>**The Manager/Controller Script**:
 |  Script       | Description                                                  |
